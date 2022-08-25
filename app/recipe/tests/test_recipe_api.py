@@ -166,7 +166,7 @@ class PrivateRecipeAPITests(TestCase):
 
         payload = {'user': new_user.id}
         url = detail_url(recipe.id)
-        res = self.client.patch(url, payload)
+        self.client.patch(url, payload)
         recipe.refresh_from_db()
         self.assertEqual(recipe.user, self.user)
 
@@ -187,5 +187,5 @@ class PrivateRecipeAPITests(TestCase):
 
         url = detail_url(recipe.id)
         res = self.client.delete(url)
-        self.assertEqual(res.status_code,status.HTTP_404_NOT_FOUND)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         self.assertTrue(Recipe.objects.filter(id=recipe.id).exists())

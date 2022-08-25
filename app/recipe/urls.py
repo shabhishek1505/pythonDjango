@@ -1,5 +1,5 @@
 """
-URL mappings for recipe 
+URL mappings for recipe
 """
 
 from django.urls import (
