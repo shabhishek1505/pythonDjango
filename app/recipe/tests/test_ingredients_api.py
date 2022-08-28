@@ -1,0 +1,100 @@
+"""
+Tests for ingrdients api.
+"""
+
+from unicodedata import name
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.test import TestCase
+
+from rest_framework import status
+from rest_framework.test import APIClient
+
+from core.models import Ingredient
+from recipe.serializers import IngredientSerializer
+
+ingredients_url = reverse('recipe:ingredient-list')
+
+
+def detail_url(ingredient_id):
+    """Return Ingredient detail Url"""
+    return reverse('recipe:ingredient-detail', args=[ingredient_id])
+
+
+def create_user(email='test@example.com', password='Password@123'):
+    """Create and return user."""
+    return get_user_model().objects.create_user(email=email, password=password)
+
+
+class PublicIngredientAPITest(TestCase):
+    """Tests UnAuthenticated api requests"""
+
+    def setUp(self):
+        self.client = APIClient()
+
+    def test_auth_required(self):
+        """Test autentication is required for Ingredients api"""
+        res = self.client.get(ingredients_url)
+        self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PrivateIngredientsAPITests(TestCase):
+    """Tests for authenticated api requests"""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = create_user()
+        self.client.force_authenticate(self.user)
+
+    def test_retriving_ingredients(self):
+        """Test retriving list of ingredients"""
+        Ingredient.objects.create(user=self.user, name='Ingredient1')
+        Ingredient.objects.create(user=self.user, name='Ingredients2')
+
+        res = self.client.get(ingredients_url)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        ingredients = Ingredient.objects.all().order_by('-name')
+        serializer = IngredientSerializer(ingredients, many=True)
+        self.assertEqual(res.data, serializer.data)
+
+    def test_retriving_ingredients_user(self):
+        """Retrive ingredients of auth user"""
+        other_user = create_user(
+            email='othe@example.com', password='Password@123')
+        Ingredient.objects.create(
+            user=other_user, name='Ingredient1')
+        ingredient2 = Ingredient.objects.create(
+            user=self.user, name='Ingredient2')
+
+        res = self.client.get(ingredients_url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['name'], ingredient2.name)
+
+    def test_update_ingredient(self):
+        """Test Updating an ingredient"""
+        ingredient = Ingredient.objects.create(user=self.user, name='Cilinto')
+
+        payload = {
+            'name': 'Coriender'
+        }
+        url = detail_url(ingredient.id)
+        res = self.client.patch(url, payload)
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        ingredient.refresh_from_db()
+
+        self.assertEqual(ingredient.name, payload['name'])
+
+    def test_delete_ingredient(self):
+        """Deleting an Ingredient"""
+        ingredient = Ingredient.objects.create(
+            user=self.user, name='Ingredient1')
+        url = detail_url(ingredient.id)
+
+        res = self.client.delete(url)
+        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+        ingredients = Ingredient.objects.filter(user=self.user)
+        self.assertFalse(ingredients.exists())
